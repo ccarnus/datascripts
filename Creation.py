@@ -17,6 +17,52 @@ def format_displayed_name(name):
 
     return displayed.strip()
 
+REQUIRED_FIELDS = [
+    "title",
+    "department",
+    "university",
+    "category",
+    "visibility",
+    "link",
+    "topic",
+    "dateadded"
+]
+
+def validate_cast_payload(payload):
+    """
+    Checks whether the payload (dict) meets the following criteria:
+      - Contains exactly the fields listed in REQUIRED_FIELDS
+      - None of these fields is empty (string check)
+      - No additional fields are present
+    Returns: (is_valid: bool, error_message: str or None)
+    """
+
+    # Check for exact set of keys
+    payload_keys = set(payload.keys())
+    required_keys = set(REQUIRED_FIELDS)
+
+    # Additional fields?
+    extra_keys = payload_keys - required_keys
+    if extra_keys:
+        return False, f"Extra field(s): {list(extra_keys)}"
+
+    # Missing fields?
+    missing_keys = required_keys - payload_keys
+    if missing_keys:
+        return False, f"Missing field(s): {list(missing_keys)}"
+
+    # Now ensure none of the required fields is empty
+    for key in REQUIRED_FIELDS:
+        val = payload[key]
+        # Check emptiness. If it's not a string, we just check if it's "falsy".
+        # If you specifically only allow non-empty strings, adjust as needed.
+        # For now let's assume all are expected to be strings that are not empty.
+        if not isinstance(val, str) or not val.strip():
+            return False, f"Field '{key}' is empty or not a string."
+
+    return True, None
+
+
 def create_universities():
     print("\n" + "="*50)
     print("          UNIVERSITY CREATION UTILITY".center(50))
@@ -83,6 +129,7 @@ def create_universities():
 
     print("\nCreation process completed.\n")
 
+
 def create_casts():
     print("\n" + "="*50)
     print("           CAST CREATION UTILITY".center(50))
@@ -115,8 +162,62 @@ def create_casts():
         return
 
     print(f"\nFound {len(subfolders)} subfolders to create casts from:")
+
+    # We'll validate all subfolders first:
+    validation_results = {}  # {subfolder_name: (is_valid, error_msg)}
+
     for sf in subfolders:
-        print(f"  - {sf}")
+        sf_path = os.path.join(folder_path, sf)
+        if not os.path.isdir(sf_path):
+            # Just in case
+            validation_results[sf] = (False, "Not a directory?")
+            continue
+
+        files_in_sf = os.listdir(sf_path)
+
+        # Check presence of exactly one 'json.txt'
+        json_candidates = [f for f in files_in_sf if f.lower() == 'json.txt']
+        if len(json_candidates) != 1:
+            validation_results[sf] = (False, "No suitable single 'json.txt' found.")
+            continue
+
+        # Check presence of exactly one other file as video
+        video_candidates = [f for f in files_in_sf if f.lower() != 'json.txt']
+        if len(video_candidates) != 1:
+            validation_results[sf] = (False, "No suitable single video file found.")
+            continue
+
+        # Validate the JSON
+        json_file = json_candidates[0]
+        json_path = os.path.join(sf_path, json_file)
+        if not os.path.isfile(json_path):
+            validation_results[sf] = (False, "'json.txt' file missing.")
+            continue
+
+        with open(json_path, 'r') as jf:
+            try:
+                content = jf.read().strip()
+                cast_data = json.loads(content)
+            except json.JSONDecodeError:
+                validation_results[sf] = (False, "Invalid JSON format.")
+                continue
+
+        # Check that all required fields exist, no extra fields, none empty
+        is_valid, err_msg = validate_cast_payload(cast_data)
+        if not is_valid:
+            validation_results[sf] = (False, f"Payload error: {err_msg}")
+            continue
+
+        # If all is well, subfolder is valid
+        validation_results[sf] = (True, None)
+
+    # Now display the subfolders, marking those with errors
+    for sf in subfolders:
+        is_valid, err_msg = validation_results[sf]
+        if is_valid:
+            print(f"  - {sf}")
+        else:
+            print(f"  - {sf}  (PAYLOAD ERROR: {err_msg})")
 
     proceed = input("\nDo you want to proceed with creation of these casts? (yes/no): ").strip().lower()
     if proceed != "yes":
@@ -131,62 +232,30 @@ def create_casts():
 
     for sf in subfolders:
         sf_path = os.path.join(folder_path, sf)
-        if not os.path.isdir(sf_path):
-            # Just in case, skip
+        is_valid, err_msg = validation_results[sf]
+
+        if not is_valid:
+            # Skip automatically
+            print(f"Skipping '{sf}' due to payload error: {err_msg}")
+            fail_count += 1
+            failed_folders.append(sf)
             continue
 
-        # We expect one video file and one "json.txt" file
+        # We already know there's 1 JSON and 1 video
         files_in_sf = os.listdir(sf_path)
-        print(f"Working on {sf}... ")
-
-        # Find json.txt file
-        json_candidates = [f for f in files_in_sf if f.lower() == 'json.txt']
-        if len(json_candidates) != 1:
-            print(f"No suitable single 'json.txt' file found in subfolder '{sf}'. Skipping...")
-            fail_count += 1
-            failed_folders.append(sf)
-            continue
-
-        json_file = json_candidates[0]
-
-        # Find a video file (assume exactly one other file that isn't json.txt)
+        json_file = 'json.txt'
         video_candidates = [f for f in files_in_sf if f.lower() != 'json.txt']
-        if len(video_candidates) != 1:
-            print(f"No suitable single video file found in subfolder '{sf}'. Skipping...")
-            fail_count += 1
-            failed_folders.append(sf)
-            continue
-
         video_file = video_candidates[0]
 
-        # Validate files
-        json_path = os.path.join(sf_path, json_file) if json_file else None
-        video_path = os.path.join(sf_path, video_file) if video_file else None
+        json_path = os.path.join(sf_path, json_file)
+        video_path = os.path.join(sf_path, video_file)
 
-        if not json_path or not os.path.isfile(json_path):
-            print(f"'json.txt' file missing in '{sf}'. Skipping...")
-            fail_count += 1
-            failed_folders.append(sf)
-            continue
-
-        if not video_path or not os.path.isfile(video_path):
-            print(f"Video file missing in '{sf}'. Skipping...")
-            fail_count += 1
-            failed_folders.append(sf)
-            continue
-
-        # Read json from json.txt
+        # Re-read the JSON (already validated, but we need to embed the brightmindid)
         with open(json_path, 'r') as jf:
-            try:
-                content = jf.read().strip()
-                cast_data = json.loads(content)
-            except json.JSONDecodeError:
-                print(f"Invalid JSON in '{sf}'. Skipping...")
-                fail_count += 1
-                failed_folders.append(sf)
-                continue
+            content = jf.read().strip()
+            cast_data = json.loads(content)
 
-        # Add brightmindid field
+        # Insert brightmindid
         cast_data["brightmindid"] = brightmindid
 
         # Prepare POST
@@ -216,7 +285,7 @@ def create_casts():
 
     input("\nPress Enter to exit...")
 
-if __name__ == "__main__":
+def main_menu():
     while True:
         print("\n" + "="*50)
         print("           CREATION MAIN MENU".center(50))
@@ -237,3 +306,6 @@ if __name__ == "__main__":
             break
         else:
             print("\nInvalid choice. Please try again.\n")
+
+if __name__ == "__main__":
+    main_menu()
