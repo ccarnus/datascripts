@@ -47,6 +47,7 @@ def validate_cast_payload(payload):
     payload_keys = set(payload.keys())
     required_keys = set(REQUIRED_FIELDS_CAST)
 
+    # Check for extra / missing fields
     extra_keys = payload_keys - required_keys
     if extra_keys:
         return False, f"Extra field(s): {list(extra_keys)}"
@@ -55,7 +56,7 @@ def validate_cast_payload(payload):
     if missing_keys:
         return False, f"Missing field(s): {list(missing_keys)}"
 
-    # Ensure none of the required fields is empty (assuming all are strings)
+    # Ensure no field is empty
     for key in REQUIRED_FIELDS_CAST:
         val = payload[key]
         if not isinstance(val, str) or not val.strip():
@@ -113,6 +114,7 @@ def create_universities():
     print("          UNIVERSITY CREATION UTILITY".center(50))
     print("="*50 + "\n")
 
+    # Open a file navigator to choose the folder
     root = tk.Tk()
     root.withdraw()
     folder_path = filedialog.askdirectory(title="Select Folder Containing University Icons")
@@ -207,7 +209,7 @@ def create_casts():
 
     validation_results = {}  # subfolder -> (is_valid, error_msg)
 
-    # Validate
+    # Validate all subfolders
     for sf in subfolders:
         sf_path = os.path.join(folder_path, sf)
         if not os.path.isdir(sf_path):
@@ -215,11 +217,14 @@ def create_casts():
             continue
 
         files_in_sf = os.listdir(sf_path)
+
+        # Exactly one 'json.txt'
         json_candidates = [f for f in files_in_sf if f.lower() == 'json.txt']
         if len(json_candidates) != 1:
             validation_results[sf] = (False, "No suitable single 'json.txt' found.")
             continue
 
+        # Exactly one other file for video
         video_candidates = [f for f in files_in_sf if f.lower() != 'json.txt']
         if len(video_candidates) != 1:
             validation_results[sf] = (False, "No suitable single video file found.")
@@ -245,12 +250,11 @@ def create_casts():
             validation_results[sf] = (False, f"Payload error: {err_msg}")
             continue
 
-        # All good
         validation_results[sf] = (True, None)
 
-    # Display
+    # Display subfolders and any errors
     for sf in subfolders:
-        is_valid, err_msg = validation_results[sf]
+        is_valid, err_msg = validation_results.get(sf, (False, "Unknown error"))
         if is_valid:
             print(f"  - {sf}")
         else:
@@ -267,6 +271,7 @@ def create_casts():
     fail_count = 0
     failed_folders = []
 
+    # Create the casts
     for sf in subfolders:
         sf_path = os.path.join(folder_path, sf)
         is_valid, err_msg = validation_results[sf]
@@ -321,11 +326,11 @@ def create_articles():
     """
     Creates articles from a folder of text files (each containing JSON).
     - Prompt the user for brightmindid
-    - Let them choose a folder. Each file in that folder is a candidate
-    - Validate that file's JSON payload
+    - Let them choose a folder. Each file at the top level is a candidate
+    - Validate each file’s JSON payload
     - Summarize errors
     - If proceed, POST each valid article with:
-        http://3.17.219.54/article
+         http://3.17.219.54/article
       using `files={'article': (None, json.dumps(article_data), 'application/json')}`
     """
     print("\n" + "="*50)
@@ -349,8 +354,7 @@ def create_articles():
         print("Invalid folder path. Exiting.")
         return
 
-    # We'll assume every text file is a JSON candidate for an article
-    # Or you can filter by extension. For now, let's accept any .txt or .json
+    # We'll assume any .txt or .json file at the top level is a candidate
     valid_extensions = ('.txt', '.json')
     all_files = os.listdir(folder_path)
     article_candidates = [f for f in all_files if f.lower().endswith(valid_extensions)]
@@ -359,7 +363,7 @@ def create_articles():
         print("No .txt or .json files found in the selected folder.")
         return
 
-    print(f"\nFound {len(article_candidates)} text file(s) to create articles from:")
+    print(f"\nFound {len(article_candidates)} file(s) to create articles from:")
 
     # Validate each file
     validation_results = {}
@@ -380,7 +384,7 @@ def create_articles():
             validation_results[filename] = (False, f"Error reading file: {str(e)}")
             continue
 
-        # Validate
+        # Validate fields
         is_valid, err_msg = validate_article_payload(article_data)
         if not is_valid:
             validation_results[filename] = (False, err_msg)
@@ -421,8 +425,8 @@ def create_articles():
         # Insert brightmindid
         article_data["brightmindid"] = brightmindid
 
-        # Prepare multipart. In this scenario, you only have an 'article' field
-        # If you needed an attached image or PDF, you'd add another field like: 'pdf':(pdf_filename, open(...), 'application/pdf')
+        # Prepare multipart
+        # If you had an attached image or file, you could add it here with a new key
         files_data = {
             'article': (None, json.dumps(article_data), 'application/json')
         }
@@ -445,7 +449,6 @@ def create_articles():
             print(f"    - {ff}")
 
     input("\nPress Enter to exit...")
-
 
 ################################################################################
 # MAIN MENU
