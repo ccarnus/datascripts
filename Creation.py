@@ -59,6 +59,7 @@ def validate_cast_payload(payload):
     # Ensure no field is empty
     for key in REQUIRED_FIELDS_CAST:
         val = payload[key]
+        # All cast fields are expected to be non-empty strings.
         if not isinstance(val, str) or not val.strip():
             return False, f"Field '{key}' is empty or not a string."
 
@@ -68,6 +69,7 @@ def validate_cast_payload(payload):
 # ARTICLE VALIDATION
 ################################################################################
 
+# We add "duration" to the required fields, but note that it's an integer field.
 REQUIRED_FIELDS_ARTICLE = [
     "title",
     "department",
@@ -75,16 +77,19 @@ REQUIRED_FIELDS_ARTICLE = [
     "university",
     "category",
     "visibility",
-    "duration",
     "link",
     "topic",
-    "dateadded"
+    "dateadded",
+    "duration"
 ]
 
 def validate_article_payload(payload):
     """
     Checks whether the article payload has exactly the required fields
-    (REQUIRED_FIELDS_ARTICLE), none are empty, and no extras.
+    (REQUIRED_FIELDS_ARTICLE), with the following conditions:
+      - No extra or missing fields
+      - None of the string fields is empty
+      - 'duration' is an integer
     """
     payload_keys = set(payload.keys())
     required_keys = set(REQUIRED_FIELDS_ARTICLE)
@@ -97,11 +102,19 @@ def validate_article_payload(payload):
     if missing_keys:
         return False, f"Missing field(s): {list(missing_keys)}"
 
-    # Ensure none of the required fields is empty
+    # Validate each field
     for key in REQUIRED_FIELDS_ARTICLE:
         val = payload[key]
-        if not isinstance(val, str) or not val.strip():
-            return False, f"Field '{key}' is empty or not a string."
+        if key == "duration":
+            # Must be an integer
+            if not isinstance(val, int):
+                return False, "Field 'duration' must be an integer."
+            if val <= 0:
+                return False, "Field 'duration' must be > 0."
+        else:
+            # All other fields: non-empty string
+            if not isinstance(val, str) or not val.strip():
+                return False, f"Field '{key}' is empty or not a string."
 
     return True, None
 
@@ -324,14 +337,15 @@ def create_casts():
 
 def create_articles():
     """
-    Creates articles from a folder of text files (each containing JSON).
-    - Prompt the user for brightmindid
-    - Let them choose a folder. Each file at the top level is a candidate
-    - Validate each file’s JSON payload
-    - Summarize errors
-    - If proceed, POST each valid article with:
-         http://3.17.219.54/article
-      using `files={'article': (None, json.dumps(article_data), 'application/json')}`
+    Creates articles from a folder of text/json files at the top level.
+    - Prompts user for brightmindid (added to each article).
+    - Validates each file's JSON structure:
+       * Must contain all required fields, including integer 'duration'
+       * No extra fields
+       * All string fields are non-empty
+       * duration is integer > 0
+    - Summarizes errors.
+    - If user proceeds, POSTs each valid article to the endpoint.
     """
     print("\n" + "="*50)
     print("          ARTICLE CREATION UTILITY".center(50))
@@ -342,6 +356,7 @@ def create_articles():
         print("No brightmindid provided, defaulting to empty string.")
         brightmindid = ""
 
+    # Choose folder
     root = tk.Tk()
     root.withdraw()
     folder_path = filedialog.askdirectory(title="Select Folder Containing Article JSON Files")
@@ -354,7 +369,7 @@ def create_articles():
         print("Invalid folder path. Exiting.")
         return
 
-    # We'll assume any .txt or .json file at the top level is a candidate
+    # We accept .txt or .json as candidate files
     valid_extensions = ('.txt', '.json')
     all_files = os.listdir(folder_path)
     article_candidates = [f for f in all_files if f.lower().endswith(valid_extensions)]
@@ -419,24 +434,34 @@ def create_articles():
             continue
 
         file_path = os.path.join(folder_path, filename)
-        with open(file_path, 'r', encoding='utf-8') as jf:
-            article_data = json.loads(jf.read().strip())
+        try:
+            with open(file_path, 'r', encoding='utf-8') as jf:
+                article_data = json.loads(jf.read().strip())
+        except Exception as e:
+            print(f"Skipping '{filename}' due to error reading file: {e}")
+            fail_count += 1
+            failed_files.append(filename)
+            continue
 
         # Insert brightmindid
         article_data["brightmindid"] = brightmindid
 
-        # Prepare multipart
-        # If you had an attached image or file, you could add it here with a new key
-        files_data = {
-            'article': (None, json.dumps(article_data), 'application/json')
-        }
+        # Debug: Print the payload before sending
+        print(f"\nDEBUG - Payload for '{filename}':")
+        print(json.dumps(article_data, indent=2))
 
-        response = requests.post(url, files=files_data)
+        response = requests.post(url, json=article_data)
+
+
         if response.status_code == 201:
             print(f"Successfully created article from file '{filename}'.")
             success_count += 1
         else:
-            print(f"Failed to create article from file '{filename}'. Status code: {response.status_code}.")
+            # Capture response.text for additional error details
+            error_detail = response.text
+            print(f"Failed to create article from file '{filename}'. "
+                  f"Status code: {response.status_code}. "
+                  f"Error detail: {error_detail}")
             fail_count += 1
             failed_files.append(filename)
 
