@@ -79,8 +79,7 @@ REQUIRED_FIELDS_ARTICLE = [
     "visibility",
     "link",
     "topic",
-    "dateadded",
-    "duration"
+    "dateadded"
 ]
 
 def validate_article_payload(payload):
@@ -105,16 +104,8 @@ def validate_article_payload(payload):
     # Validate each field
     for key in REQUIRED_FIELDS_ARTICLE:
         val = payload[key]
-        if key == "duration":
-            # Must be an integer
-            if not isinstance(val, int):
-                return False, "Field 'duration' must be an integer."
-            if val <= 0:
-                return False, "Field 'duration' must be > 0."
-        else:
-            # All other fields: non-empty string
-            if not isinstance(val, str) or not val.strip():
-                return False, f"Field '{key}' is empty or not a string."
+        if not isinstance(val, str) or not val.strip():
+            return False, f"Field '{key}' is empty or not a string."
 
     return True, None
 
