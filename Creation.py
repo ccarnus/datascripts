@@ -148,7 +148,7 @@ def create_universities():
         print("No image files found in the selected folder.")
         return
 
-    print(f"\nFound {len(image_files)} image files to create universities from:")
+    print(f"\nFound {len(image_files)} image file(s) to create universities from:")
     for img_file in image_files:
         print(f"  - {img_file}")
 
@@ -178,7 +178,11 @@ def create_universities():
             'university': (None, json.dumps(uni_data), 'application/json')
         }
 
-        response = requests.post(url, files=files_data)
+        try:
+            response = requests.post(url, files=files_data)
+        except Exception as e:
+            print(f"Failed to send request for {img_file}. Error: {e}. Skipping...")
+            continue
 
         if response.status_code == 201:
             print(f"Successfully created university: {displayed_name}")
@@ -218,7 +222,7 @@ def create_casts():
         print("No subfolders found.")
         return
 
-    print(f"\nFound {len(subfolders)} subfolders to create casts from:")
+    print(f"\nFound {len(subfolders)} subfolder(s) to create casts from:")
 
     validation_results = {}  # subfolder -> (is_valid, error_msg)
 
@@ -231,14 +235,14 @@ def create_casts():
 
         files_in_sf = os.listdir(sf_path)
 
-        # Exactly one 'json.txt'
-        json_candidates = [f for f in files_in_sf if f.lower() == 'json.txt']
+        # Exactly one 'details.json'
+        json_candidates = [f for f in files_in_sf if f.lower() == 'details.json']
         if len(json_candidates) != 1:
-            validation_results[sf] = (False, "No suitable single 'json.txt' found.")
+            validation_results[sf] = (False, "No suitable single 'details.json' found.")
             continue
 
         # Exactly one other file for video
-        video_candidates = [f for f in files_in_sf if f.lower() != 'json.txt']
+        video_candidates = [f for f in files_in_sf if f.lower() != 'details.json']
         if len(video_candidates) != 1:
             validation_results[sf] = (False, "No suitable single video file found.")
             continue
@@ -246,15 +250,18 @@ def create_casts():
         json_file = json_candidates[0]
         json_path = os.path.join(sf_path, json_file)
         if not os.path.isfile(json_path):
-            validation_results[sf] = (False, "'json.txt' file missing.")
+            validation_results[sf] = (False, "'details.json' file missing.")
             continue
 
         try:
-            with open(json_path, 'r') as jf:
+            with open(json_path, 'r', encoding='utf-8') as jf:
                 content = jf.read().strip()
                 cast_data = json.loads(content)
         except json.JSONDecodeError:
             validation_results[sf] = (False, "Invalid JSON format.")
+            continue
+        except Exception as e:
+            validation_results[sf] = (False, f"Error reading 'details.json': {e}")
             continue
 
         # Validate
@@ -295,15 +302,21 @@ def create_casts():
             continue
 
         files_in_sf = os.listdir(sf_path)
-        json_file = 'json.txt'
-        video_candidates = [f for f in files_in_sf if f.lower() != 'json.txt']
+        json_file = 'details.json'
+        video_candidates = [f for f in files_in_sf if f.lower() != 'details.json']
         video_file = video_candidates[0]
 
         json_path = os.path.join(sf_path, json_file)
         video_path = os.path.join(sf_path, video_file)
 
-        with open(json_path, 'r') as jf:
-            cast_data = json.loads(jf.read().strip())
+        try:
+            with open(json_path, 'r', encoding='utf-8') as jf:
+                cast_data = json.loads(jf.read().strip())
+        except Exception as e:
+            print(f"Skipping '{sf}' due to error reading 'details.json': {e}")
+            fail_count += 1
+            failed_folders.append(sf)
+            continue
 
         cast_data["brightmindid"] = brightmindid
 
@@ -312,7 +325,14 @@ def create_casts():
             'cast': (None, json.dumps(cast_data), 'application/json')
         }
 
-        response = requests.post(url, files=files_data)
+        try:
+            response = requests.post(url, files=files_data)
+        except Exception as e:
+            print(f"Failed to send request for '{sf}'. Error: {e}. Skipping...")
+            fail_count += 1
+            failed_folders.append(sf)
+            continue
+
         if response.status_code == 201:
             print(f"Successfully created cast from folder '{sf}'.")
             success_count += 1
@@ -450,8 +470,13 @@ def create_articles():
         print(f"\nDEBUG - Payload for '{filename}':")
         print(json.dumps(article_data, indent=2))
 
-        response = requests.post(url, json=article_data)
-
+        try:
+            response = requests.post(url, json=article_data)
+        except Exception as e:
+            print(f"Failed to send request for '{filename}'. Error: {e}. Skipping...")
+            fail_count += 1
+            failed_files.append(filename)
+            continue
 
         if response.status_code == 201:
             print(f"Successfully created article from file '{filename}'.")
