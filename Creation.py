@@ -35,7 +35,6 @@ REQUIRED_FIELDS_CAST = [
     "category",
     "visibility",
     "link",
-    "topic",
     "dateadded"
 ]
 
@@ -78,7 +77,6 @@ REQUIRED_FIELDS_ARTICLE = [
     "category",
     "visibility",
     "link",
-    "topic",
     "dateadded"
 ]
 
