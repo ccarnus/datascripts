@@ -73,7 +73,7 @@ def validate_cast_payload(payload):
 REQUIRED_FIELDS_ARTICLE = [
     "title",
     "department",
-    "articleDescription",
+    "description",
     "university",
     "category",
     "visibility",
