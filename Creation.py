@@ -30,7 +30,6 @@ def format_displayed_name(name):
 
 REQUIRED_FIELDS_CAST = [
     "title",
-    "department",
     "university",
     "category",
     "visibility",
@@ -71,7 +70,6 @@ def validate_cast_payload(payload):
 # We add "duration" to the required fields, but note that it's an integer field.
 REQUIRED_FIELDS_ARTICLE = [
     "title",
-    "department",
     "description",
     "university",
     "category",
