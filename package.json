@@ -1,0 +1,12 @@
+{
+  "name": "brightminds-scripts",
+  "private": true,
+  "description": "Create and purge BrightMinds content (universities, casts, articles) through the backend API",
+  "main": "bm.js",
+  "scripts": {
+    "start": "node bm.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
