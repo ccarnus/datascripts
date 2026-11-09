@@ -344,10 +344,21 @@ const signup = async ({ picture }) => {
         filename: 'profile.png',
         contentType: 'image/png',
       };
-  const result = await api.upload('/user/signup', {
-    fields: { user: JSON.stringify({ email, username, password, role, university }) },
-    file,
-  });
+  let result;
+  try {
+    result = await api.upload('/user/signup', {
+      fields: { user: JSON.stringify({ email, username, password, role, university }) },
+      file,
+    });
+  } catch (error) {
+    // The backend deletes the account and answers 500 when the verification email can't be sent.
+    if (error.status === 500) {
+      error.message +=
+        '\nThe server could not send the verification email: check EMAIL_USER / EMAIL_PWD ' +
+        '(Gmail app password) in /opt/homeboy/brightminds.env, then `docker compose up -d brightminds`.';
+    }
+    throw error;
+  }
   console.log(`\n${result.response}`);
   console.log('Then put BM_EMAIL / BM_PASSWORD in .env to post content as this account.');
 };
