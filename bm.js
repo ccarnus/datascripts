@@ -258,9 +258,8 @@ const createArticles = async (folder, { dryRun, yes }) => {
   const failed = [];
   for (const [index, item] of ready.entries()) {
     const label = `[${index + 1}/${ready.length}] ${item.name}`;
-    process.stdout.write(`  ${label}  generating quiz and image...`);
+    process.stdout.write(`  ${label} ...`);
     try {
-      // Synchronous on the server (OpenAI quiz + image): can take a minute.
       await api.request('POST', '/article', {
         token,
         json: { ...item.payload, brightmindid: userId },
@@ -274,6 +273,9 @@ const createArticles = async (folder, { dryRun, yes }) => {
     }
   }
   summarize(items, done, failed);
+  console.log(
+    'Quiz, image and topic are generated in the background (about a minute per article).'
+  );
 };
 
 // ---------------------------------------------------------------- purge
