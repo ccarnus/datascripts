@@ -14,6 +14,7 @@ try {
 const api = require('./lib/api');
 const { loadCasts, loadArticles } = require('./lib/content');
 const { ask, askHidden, confirm, askPath, closePrompts } = require('./lib/prompt');
+const { pickFolder } = require('./lib/folder_picker');
 const DISPLAY_NAME_OVERRIDES = require('./universities.json');
 
 const PLACEHOLDER_ICON = '/backend/media/verification_email/BrightMinds_icon.png';
@@ -382,17 +383,37 @@ const run = async (command, target, options) => {
   }
 };
 
+// Third item: { folder } opens the folder window with that title, { ask } prompts for text.
 const MENU = [
-  ['universities', 'Create universities used by a content folder', 'Content folder: '],
-  ['casts', 'Upload casts', 'Folder containing the cast sub-folders: '],
-  ['articles', 'Create articles', 'Folder containing the article .json files: '],
+  [
+    'universities',
+    'Create universities used by a content folder',
+    { folder: 'Select the content folder (cast sub-folders or article .json files)' },
+  ],
+  ['casts', 'Upload casts', { folder: 'Select the folder containing the cast sub-folders' }],
+  [
+    'articles',
+    'Create articles',
+    { folder: 'Select the folder containing the article .json files' },
+  ],
   [
     'purge',
     'Purge (delete all) casts, articles or universities',
-    'What to purge (casts/articles/universities): ',
+    { ask: 'What to purge (casts/articles/universities): ' },
   ],
   ['signup', 'Create the account content is posted as'],
 ];
+
+/** Opens the folder window; falls back to typing the path if it can't be shown. */
+const chooseFolder = async (title) => {
+  console.log('Choose the folder in the window that just opened...');
+  try {
+    return await pickFolder(title);
+  } catch (error) {
+    console.log(`Could not open the folder window (${error.message}).`);
+    return (await askPath('Folder path: ')) || null;
+  }
+};
 
 const menu = async () => {
   for (;;) {
@@ -403,8 +424,18 @@ const menu = async () => {
     if (choice === 'q') return;
     const entry = MENU[Number(choice) - 1];
     if (!entry) continue;
-    const [command, , question] = entry;
-    const target = question ? await askPath(question) : undefined;
+    const [command, , input = {}] = entry;
+    let target;
+    if (input.folder) {
+      target = await chooseFolder(input.folder);
+      if (!target) {
+        console.log('No folder selected.');
+        continue;
+      }
+      console.log(`Folder: ${target}`);
+    } else if (input.ask) {
+      target = await ask(input.ask);
+    }
     try {
       await run(command, target, {});
     } catch (error) {

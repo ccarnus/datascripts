@@ -5,7 +5,7 @@ or purge them. Node 22+, no dependencies.
 
 ```bash
 cp .env.example .env          # optional: BM_EMAIL / BM_PASSWORD of the posting account
-node bm.js                    # interactive menu
+node bm.js                    # interactive menu (folders are picked in a Windows folder window)
 node bm.js help               # commands
 ```
 
