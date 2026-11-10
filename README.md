@@ -21,8 +21,9 @@ node bm.js casts "<content folder>"            # upload
 Every command shows its plan and asks before writing. Re-running is safe: content whose title
 already exists on the server is skipped, so after a failure just run the same command again.
 
-**From the home network**, the router drops about every other connection to its own public IP:
-set `BM_API_IP=192.168.1.111` in `.env` to reach the server directly (HTTPS stays valid).
+**From the home network**, the router drops about every other connection to its own public IP.
+The script retries those (6 s each), but setting `BM_API_IP=192.168.1.111` in `.env` reaches the
+server directly and avoids the delays (HTTPS stays valid).
 
 ## Content format
 
