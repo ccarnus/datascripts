@@ -79,15 +79,31 @@ const fetchUniversityNames = async () =>
 
 // ---------------------------------------------------------------- universities
 
+/** University keys a folder provides: from casts/articles, or else from logo files (<Key>.png). */
+const universitiesIn = (folder) => {
+  const fromContent = [...loadCasts(folder), ...loadArticles(folder)]
+    .map((item) => item.payload?.university)
+    .filter(Boolean);
+  if (fromContent.length) return { names: fromContent, isLogos: false };
+  const fromLogos = fs
+    .readdirSync(folder)
+    .filter((f) => IMAGE_TYPES[path.extname(f).toLowerCase()])
+    .map((f) => path.parse(f).name);
+  return { names: fromLogos, isLogos: fromLogos.length > 0 };
+};
+
+/** `sources`: content folders (casts/articles) and/or logo folders (one <Key>.png per university). */
 const createUniversities = async (sources, { icons, dryRun, yes }) => {
   banner('UNIVERSITIES');
   const wanted = new Set();
   for (const source of sources) {
-    for (const item of [...loadCasts(source), ...loadArticles(source)]) {
-      if (item.payload?.university) wanted.add(item.payload.university);
-    }
+    const { names, isLogos } = universitiesIn(source);
+    names.forEach((name) => wanted.add(name));
+    if (isLogos) icons ??= source;
   }
-  if (!wanted.size) return console.log('No universities referenced in that folder.');
+  if (!wanted.size) {
+    return console.log('No casts, articles or logo images found in that folder.');
+  }
 
   const existing = await fetchUniversityNames();
   const missing = [...wanted].filter((name) => !existing.has(name)).sort();
@@ -384,15 +400,15 @@ const run = async (command, target, options) => {
 };
 
 // Third item: { folder } opens the folder window with that title, { ask } prompts for text,
-// { icons } then offers a second window for the logos folder (Cancel = placeholder icon).
+// { icons } offers a second window for the logos folder when the first one was a content folder.
 const MENU = [
   [
     'universities',
-    'Create universities used by a content folder',
+    'Create universities (from the logos folder, or from a casts/articles folder)',
     {
-      folder: 'Select the content folder (cast sub-folders or article .json files)',
-      icons:
-        'Select the university logos folder (<UniversityKey>.png) - Cancel to use placeholders',
+      folder:
+        'Select the university logos folder (one <UniversityKey>.png each) or a content folder',
+      icons: 'Now select the university logos folder (Cancel = placeholder icons)',
     },
   ],
   ['casts', 'Upload casts', { folder: 'Select the folder containing the cast sub-folders' }],
@@ -411,7 +427,7 @@ const MENU = [
 
 /** Opens the folder window; falls back to typing the path if it can't be shown. */
 const chooseFolder = async (title) => {
-  console.log('Choose the folder in the window that just opened...');
+  console.log(`In the window that just opened: ${title}`);
   try {
     return await pickFolder(title);
   } catch (error) {
@@ -442,7 +458,8 @@ const menu = async () => {
       target = await ask(input.ask);
     }
     const options = {};
-    if (input.icons) {
+    // A logos folder already provides the icons: only ask when a content folder was chosen.
+    if (input.icons && !universitiesIn(target).isLogos) {
       options.icons = await chooseFolder(input.icons);
       console.log(
         options.icons ? `Logos: ${options.icons}` : 'No logos folder: placeholder icons.'
