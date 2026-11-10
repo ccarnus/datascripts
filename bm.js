@@ -383,12 +383,17 @@ const run = async (command, target, options) => {
   }
 };
 
-// Third item: { folder } opens the folder window with that title, { ask } prompts for text.
+// Third item: { folder } opens the folder window with that title, { ask } prompts for text,
+// { icons } then offers a second window for the logos folder (Cancel = placeholder icon).
 const MENU = [
   [
     'universities',
     'Create universities used by a content folder',
-    { folder: 'Select the content folder (cast sub-folders or article .json files)' },
+    {
+      folder: 'Select the content folder (cast sub-folders or article .json files)',
+      icons:
+        'Select the university logos folder (<UniversityKey>.png) - Cancel to use placeholders',
+    },
   ],
   ['casts', 'Upload casts', { folder: 'Select the folder containing the cast sub-folders' }],
   [
@@ -436,8 +441,15 @@ const menu = async () => {
     } else if (input.ask) {
       target = await ask(input.ask);
     }
+    const options = {};
+    if (input.icons) {
+      options.icons = await chooseFolder(input.icons);
+      console.log(
+        options.icons ? `Logos: ${options.icons}` : 'No logos folder: placeholder icons.'
+      );
+    }
     try {
-      await run(command, target, {});
+      await run(command, target, options);
     } catch (error) {
       console.error(`\nError: ${error.message}`);
     }
